@@ -1,10 +1,23 @@
 #include <iostream>
 #include <vector>
+#include <set>
 #include <algorithm>
 
 using namespace std;
 
-const int MAXN = 1000000;
+// Event structure for sweep line algorithm
+struct Event {
+    int pos;
+    int type; // 0 for start, 1 for end
+    int seats;
+    
+    Event(int p, int t, int s) : pos(p), type(t), seats(s) {}
+    
+    bool operator<(const Event& other) const {
+        if (pos != other.pos) return pos < other.pos;
+        return type < other.type; // Process end events before start events at same position
+    }
+};
 
 int main() {
     ios::sync_with_stdio(false);
@@ -13,35 +26,47 @@ int main() {
     int x, k, p;
     cin >> x >> k >> p;
     
-    // Use difference array to track seat changes
-    vector<int> diff(x + 1, 0);
+    // Store all active bookings
+    vector<pair<int, pair<int, int>>> bookings; // (u, (v, n))
     
     for (int i = 0; i < p; i++) {
         int u, v, n;
         cin >> u >> v >> n;
         
-        // Check if this order can be satisfied by calculating maximum occupancy in range [u-1, v-2]
-        // We need to reconstruct the current occupancy in this range
-        vector<int> current(x, 0);
-        // Reconstruct from diff array
-        int curr = 0;
-        for (int j = 0; j < x; j++) {
-            curr += diff[j];
-            current[j] = curr;
+        // Create events for current state
+        vector<Event> events;
+        for (const auto& booking : bookings) {
+            events.emplace_back(booking.first, 0, booking.second.second);
+            events.emplace_back(booking.second.first, 1, booking.second.second);
         }
         
-        bool can_satisfy = true;
-        for (int j = u - 1; j < v - 1; j++) {
-            if (current[j] + n > k) {
-                can_satisfy = false;
-                break;
+        // Sort events
+        sort(events.begin(), events.end());
+        
+        // Sweep through events to find maximum occupancy in [u, v-1]
+        int max_occupancy = 0;
+        int current_occupancy = 0;
+        
+        for (const auto& event : events) {
+            // If we've passed the query range, break
+            if (event.pos >= v) break;
+            
+            // If we haven't reached the start of query range, continue
+            if (event.pos < u) continue;
+            
+            // Update occupancy
+            if (event.type == 0) { // Start event
+                current_occupancy += event.seats;
+            } else { // End event
+                current_occupancy -= event.seats;
             }
+            
+            max_occupancy = max(max_occupancy, current_occupancy);
         }
         
-        if (can_satisfy) {
-            // Update difference array
-            diff[u - 1] += n;
-            diff[v - 1] -= n;
+        // Check if we can add this booking
+        if (max_occupancy + n <= k) {
+            bookings.emplace_back(u, make_pair(v, n));
             cout << "T\n";
         } else {
             cout << "N\n";
