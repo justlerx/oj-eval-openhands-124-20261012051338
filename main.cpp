@@ -1,5 +1,6 @@
 #include <iostream>
-#include <map>
+#include <vector>
+#include <algorithm>
 
 using namespace std;
 
@@ -10,57 +11,58 @@ int main() {
     int x, k, p;
     cin >> x >> k >> p;
     
-    // Use a map to store events: position -> net change in occupancy
-    map<int, int> events;
+    // Store all active bookings
+    vector<pair<int, pair<int, int>>> bookings; // (start, (end, seats))
     
     for (int i = 0; i < p; i++) {
         int u, v, n;
         cin >> u >> v >> n;
         
-        // Find maximum occupancy in range [u, v) with the potential new booking
-        int max_occupancy = 0;
-        int current_occupancy = 0;
+        // Create a vector of all relevant positions
+        vector<int> positions;
+        positions.push_back(u);
+        positions.push_back(v);
         
-        // Iterate through events in the relevant range
-        auto it = events.lower_bound(u);
-        
-        // Start from the beginning if no event at or after u
-        if (it == events.begin() && u > events.begin()->first) {
-            // Sum all events before u to get initial occupancy
-            for (auto e = events.begin(); e != events.end() && e->first < u; ++e) {
-                current_occupancy += e->second;
-            }
-        } else if (it != events.begin()) {
-            // Sum events from the last event before u
-            auto prev = it;
-            do {
-                --prev;
-                current_occupancy += prev->second;
-            } while (prev != events.begin() && prev->first >= u);
-            if (prev == events.begin()) {
-                current_occupancy += prev->second;
-            }
+        // Add all existing booking boundaries
+        for (const auto& booking : bookings) {
+            positions.push_back(booking.first);
+            positions.push_back(booking.second.first);
         }
         
-        // Now sweep through events from u to v-1
-        max_occupancy = current_occupancy;
+        // Sort and remove duplicates
+        sort(positions.begin(), positions.end());
+        positions.erase(unique(positions.begin(), positions.end()), positions.end());
         
-        // Add the new booking's effect at position u
-        int temp_occupancy = current_occupancy + n;
-        max_occupancy = max(max_occupancy, temp_occupancy);
+        // Find maximum occupancy in [u, v)
+        int max_occupancy = 0;
         
-        // Process events from u to v-1
-        while (it != events.end() && it->first < v) {
-            temp_occupancy += it->second;
-            max_occupancy = max(max_occupancy, temp_occupancy);
-            ++it;
+        // Check each segment between consecutive positions in [u, v)
+        for (int j = 0; j < (int)positions.size() - 1; j++) {
+            int seg_start = positions[j];
+            int seg_end = positions[j + 1];
+            
+            // Skip if segment is outside [u, v)
+            if (seg_end <= u || seg_start >= v) continue;
+            
+            // Calculate occupancy in this segment
+            int occupancy = n; // Include the new booking
+            for (const auto& booking : bookings) {
+                int b_start = booking.first;
+                int b_end = booking.second.first;
+                int b_seats = booking.second.second;
+                
+                // If this booking overlaps with the segment
+                if (b_start < seg_end && seg_start < b_end) {
+                    occupancy += b_seats;
+                }
+            }
+            
+            max_occupancy = max(max_occupancy, occupancy);
         }
         
         // Check if we can satisfy this booking
         if (max_occupancy <= k) {
-            // Update the actual events map
-            events[u] += n;
-            events[v] -= n;
+            bookings.emplace_back(u, make_pair(v, n));
             cout << "T\n";
         } else {
             cout << "N\n";
