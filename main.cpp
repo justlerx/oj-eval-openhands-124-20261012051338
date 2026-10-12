@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <map>
 #include <algorithm>
 
 using namespace std;
@@ -11,36 +12,44 @@ int main() {
     int x, k, p;
     cin >> x >> k >> p;
     
-    // Store active bookings as (start, end, seats)
-    vector<tuple<int, int, int>> bookings;
+    // Use a map to store events: position -> net change in occupancy
+    map<int, int> events;
     
     for (int i = 0; i < p; i++) {
         int u, v, n;
         cin >> u >> v >> n;
         
-        // Check if this booking can be satisfied
-        bool can_satisfy = true;
+        // Create a temporary map with current events in the range [u, v)
+        map<int, int> current_events = events;
         
-        // For each existing booking, check for overlap with [u, v)
-        for (const auto& booking : bookings) {
-            int start = get<0>(booking);
-            int end = get<1>(booking);
-            int seats = get<2>(booking);
+        // Add the potential new booking
+        current_events[u] += n;
+        current_events[v] -= n;
+        
+        // Sweep through the events to find maximum occupancy in [u, v)
+        int max_occupancy = 0;
+        int current_occupancy = 0;
+        
+        for (const auto& event : current_events) {
+            // If we've passed the range of interest, break
+            if (event.first >= v) break;
             
-            // Check if there is overlap
-            if (u < end && start < v) { // Overlapping intervals
-                // The overlap is [max(u, start), min(v, end))
-                // This booking would add n seats, and the existing booking has 'seats' seats
-                // If n + seats > k, then this booking cannot be satisfied
-                if (n + seats > k) {
-                    can_satisfy = false;
-                    break;
-                }
+            // If we haven't reached the start, continue
+            if (event.first < u) {
+                current_occupancy += event.second;
+                continue;
             }
+            
+            // We are in the range [u, v)
+            current_occupancy += event.second;
+            max_occupancy = max(max_occupancy, current_occupancy);
         }
         
-        if (can_satisfy) {
-            bookings.emplace_back(u, v, n);
+        // Check if we can satisfy this booking
+        if (max_occupancy <= k) {
+            // Update the actual events map
+            events[u] += n;
+            events[v] -= n;
             cout << "T\n";
         } else {
             cout << "N\n";
